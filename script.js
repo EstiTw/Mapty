@@ -1,18 +1,9 @@
 'use strict';
 
-const test = 'test';
-
-const form = document.querySelector('.form');
-const containerWorkouts = document.querySelector('.workouts');
-const inputType = document.querySelector('.form__input--type');
-const inputDistance = document.querySelector('.form__input--distance');
-const inputDuration = document.querySelector('.form__input--duration');
-const inputCadence = document.querySelector('.form__input--cadence');
-const inputElevation = document.querySelector('.form__input--elevation');
-
 class Workout {
   date = new Date();
   id = (Date.now() + '').split(-9);
+  clicks = 0;
   constructor(coords, distance, duration) {
     this.coords = coords; //[lat, lng]
     this.distance = distance; // in km
@@ -25,6 +16,10 @@ class Workout {
     this.description = `${this.type[0].toUpperCase()}${this.type.slice(1)} on ${
       months[this.date.getMonth()]
     } ${this.date.getDate()}`;
+  }
+
+  click() {
+    this.clicks++;
   }
 }
 
@@ -60,22 +55,28 @@ class Cycling extends Workout {
   }
 }
 
-// const run1 = new Running([39, -12], 5.2, 24, 178);
-// const cycling1 = new Cycling([39, -12], 27, 95, 523);
-// console.log(run1, cycling1);
-
 //////////////////////////////////////
 // APPLICATION ARCHITECTURE
+
+const form = document.querySelector('.form');
+const containerWorkouts = document.querySelector('.workouts');
+const workout = document.querySelector('.workout');
+const inputType = document.querySelector('.form__input--type');
+const inputDistance = document.querySelector('.form__input--distance');
+const inputDuration = document.querySelector('.form__input--duration');
+const inputCadence = document.querySelector('.form__input--cadence');
+const inputElevation = document.querySelector('.form__input--elevation');
+
 class App {
   #map;
   #mapEvent;
+  #mapZoomLevel = 13;
   #workouts = [];
   constructor() {
     this._getPosition();
-
     form.addEventListener('submit', this._newWorkout.bind(this));
-
     inputType.addEventListener('change', this._toggleElevationField);
+    containerWorkouts.addEventListener('click', this._moveToPopup.bind(this));
   }
 
   _getPosition() {
@@ -95,7 +96,7 @@ class App {
 
     // get and display Map base on this coordinates (Using Leaflet)
     const coords = [latitude, longitude];
-    this.#map = L.map('map').setView(coords, 13);
+    this.#map = L.map('map').setView(coords, this.#mapZoomLevel);
 
     L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
       attribution:
@@ -133,16 +134,15 @@ class App {
   _newWorkout(e) {
     e.preventDefault();
     const validInputs = (...inputs) =>
-      inputs.every(inp => Number.isFinite(inp));
+      inputs.every(inp => Number.isFinite(inp) && inp != '');
     const allPositive = (...inputs) => inputs.every(inp => inp > 0);
 
     const { lat, lng } = this.#mapEvent.latlng;
     const coords = [lat, lng];
     let workout;
-    let activity;
 
     // Get data from form
-    const type = (activity = inputType.value);
+    const type = inputType.value;
     const distance = +inputDistance.value;
     const duration = +inputDuration.value;
 
@@ -257,6 +257,25 @@ class App {
     }
 
     form.insertAdjacentHTML('afterend', html);
+  }
+
+  _moveToPopup(e) {
+    const workoutEl = e.target.closest('.workout');
+
+    if (!workoutEl) return; // guard clauses
+
+    const index = workoutEl.getAttribute('data-id');
+    const workout = this.#workouts.find(work => +work.id === +index);
+
+    this.#map.setView(workout.coords, this.#mapZoomLevel, {
+      animate: true,
+      pan: {
+        duration: 1,
+      },
+    });
+
+    // Using the public interface
+    workout.click();
   }
 }
 
